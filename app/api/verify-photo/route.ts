@@ -25,7 +25,8 @@ function fallbackReason(room: Room) {
   return `This does not clearly look like a ${roomLabel[room]} photo.`
 }
 
-function parseJsonFromModel(text: string): { is_house: boolean; reason?: string } | null {
+function parseJsonFromModel(rawText: unknown): { is_house: boolean; reason?: string } | null {
+  const text = typeof rawText === 'string' ? rawText : ''
   const cleaned = text
     .trim()
     .replace(/^```json\s*/i, '')
@@ -137,7 +138,7 @@ Respond ONLY with JSON in exactly this shape: {"is_house":true|false,"reason":"b
     if (parsed) {
       return NextResponse.json({
         is_house: parsed.is_house,
-        reason: parsed.reason?.trim() || (parsed.is_house ? '' : fallbackReason(expectedRoom)),
+        reason: (typeof parsed.reason === 'string' ? parsed.reason.trim() : '') || (parsed.is_house ? '' : fallbackReason(expectedRoom)),
         unverified: false
       })
     }
