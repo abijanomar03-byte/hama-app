@@ -25,24 +25,49 @@ function fallbackReason(room: Room) {
   return `This does not clearly look like a ${roomLabel[room]} photo.`
 }
 
-function parseJsonFromModel(rawText: unknown): { is_house: boolean; reason?: string } | null {
+function parseModelAnswer(rawText: unknown, room: Room): { is_house: boolean; reason: string } {
   const text = typeof rawText === 'string' ? rawText : ''
-  const cleaned = text
-    .trim()
+  const trimmed = text.trim()
+
+  const yesNoMatch = trimmed.match(/^(YES|NO)\s*[:.\-]?\s*(.*)$/i)
+  if (yesNoMatch) {
+    const isHouse = yesNoMatch[1].toUpperCase() === 'YES'
+    const reason = yesNoMatch[2].trim().slice(0, 140)
+    return { is_house: isHouse, reason: reason || (isHouse ? '' : fallbackReason(room)) }
+  }
+
+  const cleaned = trimmed
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim()
-
   try {
     const parsed = JSON.parse(cleaned)
-    if (parsed && typeof parsed.is_house === 'boolean') return parsed
+    if (parsed && typeof parsed.is_house === 'boolean') {
+      const reason = typeof parsed.reason === 'string' ? parsed.reason.trim() : ''
+      return { is_house: parsed.is_house, reason: reason || (parsed.is_house ? '' : fallbackReason(room)) }
+    }
   } catch {}
 
-  const match = cleaned.match(/\{\s*"is_house"\s*:\s*(true|false)\s*,\s*"reason"\s*:\s*"([^"\n]*)"\s*\}/i)
-  if (match) return { is_house: match[1].toLowerCase() === 'true', reason: match[2] }
+  if (trimmed.length > 0) {
+    const lower = trimmed.toLowerCase()
+    const roomWords: Record<Room, string[]> = {
+      sitting_room: ['sitting room', 'living room', 'lounge', 'sofa', 'couch'],
+      bedroom: ['bedroom', 'bed '],
+      kitchen: ['kitchen', 'cooker', 'stove', 'countertop'],
+      washroom: ['bathroom', 'washroom', 'toilet', 'shower']
+    }
+    const mentionsRoom = roomWords[room].some(w => lower.includes(w))
+    const mentionsOtherRoom = (Object.keys(roomWords) as Room[])
+      .filter(r => r !== room)
+      .some(r => roomWords[r].some(w => lower.includes(w)))
+    if (mentionsRoom && !mentionsOtherRoom) {
+      return { is_house: true, reason: '' }
+    }
+    return { is_house: false, reason: trimmed.slice(0, 140) }
+  }
 
-  return null
+  return { is_house: false, reason: fallbackReason(room) }
 }
 
 export async function POST(req: NextRequest) {
@@ -84,7 +109,7 @@ export async function POST(req: NextRequest) {
       ? '\nIMPORTANT: This is a Bedsitter. Do not require a separate bedroom photo.\n'
       : ''
 
-    const prompt = `You are Hama's strict room verifier for a rental marketplace. The user is posting a ${houseType} house and Hama is currently asking for the ${roomLabel[expectedRoom]} photo.
+    const prompt = `You are Hama's room verifier for a rental marketplace. The user is posting a ${houseType} house and Hama is currently asking for the ${roomLabel[expectedRoom]} photo.
 
 Approve ONLY when the main subject clearly shows the requested room itself. Be practical and human. Recognize normal Kenyan homes, including modest or unfinished rooms.
 
@@ -94,12 +119,9 @@ For a kitchen, look for kitchen worktops, cabinets, sink, cooker, stove, fridge,
 For a washroom, look for a toilet, shower, basin/sink, bathtub, bathroom tiles, or another unmistakable bathroom/toilet setting.
 
 Reject a different room. Reject selfies, people as the main subject, screenshots, documents, food, cars, streets, landscapes, random objects, or unclear/blurry images.
-
 ${bedsitterBedroomRule}
-Respond ONLY with JSON in exactly this shape: {"is_house":true|false,"reason":"brief human explanation under 12 words"}`
+Answer in EXACTLY this format, one line, nothing else: start with the single word YES or NO, then a colon, then a very brief reason under 12 words. Example: "YES: clearly a sitting room with sofa and TV" or "NO: this shows a bedroom, not a sitting room".`
 
-    // Cloudflare Workers AI REST API. The token stays server-side.
-    // Llama 3.2 11B Vision supports image reasoning and accepts a data-URI image.
     const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/@cf/meta/llama-3.2-11b-vision-instruct`
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -110,7 +132,7 @@ Respond ONLY with JSON in exactly this shape: {"is_house":true|false,"reason":"b
       body: JSON.stringify({
         prompt,
         image: `data:${mediaType};base64,${imageBase64}`,
-        max_tokens: 160,
+        max_tokens: 80,
         temperature: 0,
         top_p: 0.1
       }),
@@ -132,24 +154,12 @@ Respond ONLY with JSON in exactly this shape: {"is_house":true|false,"reason":"b
       }, { status: 200 })
     }
 
-    const text = payload?.result?.response || ''
-    const parsed = parseJsonFromModel(text)
+    const rawText = payload?.result?.response
+    const { is_house, reason } = parseModelAnswer(rawText, expectedRoom)
 
-    if (parsed) {
-      return NextResponse.json({
-        is_house: parsed.is_house,
-        reason: (typeof parsed.reason === 'string' ? parsed.reason.trim() : '') || (parsed.is_house ? '' : fallbackReason(expectedRoom)),
-        unverified: false
-      })
-    }
-
-    return NextResponse.json({
-      is_house: false,
-      reason: fallbackReason(expectedRoom),
-      unverified: true
-    })
+    return NextResponse.json({ is_house, reason, unverified: false })
   } catch (error) {
-    console.error("VERIFY-PHOTO ERROR:", error);
+    console.error("VERIFY-PHOTO ERROR:", error)
     return NextResponse.json({
       is_house: false,
       reason: 'Hama could not check this photo right now. Please try again.',
