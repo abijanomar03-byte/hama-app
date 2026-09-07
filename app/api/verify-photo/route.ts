@@ -148,6 +148,7 @@ Respond ONLY with JSON in exactly this shape: {"is_house":true|false,"reason":"b
       unverified: true
     })
   } catch (error) {
+    console.error("VERIFY-PHOTO ERROR:", error);
     return NextResponse.json({
       is_house: false,
       reason: 'Hama could not check this photo right now. Please try again.',
