@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useRef, useState } from 'react'
@@ -11,11 +12,40 @@ type Props = {
   onVideoCapture: (dataUrl: string, mimeType: string) => void
 }
 
-/**
- * Hama deliberately uses the device camera capture control instead of a normal
- * gallery picker. On phones, `capture="environment"` asks the browser to use
- * the rear camera. We do not expose a separate gallery button.
- */
+/** Resizes+recompresses a captured photo so it stays well under serverless
+ *  request-size limits (a full-resolution phone photo can be 5-10MB, which
+ *  inflates further once base64-encoded). Returns a JPEG data URL. */
+function resizeImageDataUrl(dataUrl: string, maxDimension: number, quality: number): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        let { width, height } = img
+        if (width > maxDimension || height > maxDimension) {
+          if (width >= height) {
+            height = Math.round((height / width) * maxDimension)
+            width = maxDimension
+          } else {
+            width = Math.round((width / height) * maxDimension)
+            height = maxDimension
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(dataUrl); return }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      } catch {
+        resolve(dataUrl)
+      }
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 export default function LiveMedia({ mode, label, onPhotoCapture, onVideoCapture }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
@@ -29,7 +59,6 @@ export default function LiveMedia({ mode, label, onPhotoCapture, onVideoCapture 
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    // Allow the same room to be retaken after a rejection.
     e.target.value = ''
     if (!file) return
 
@@ -57,7 +86,8 @@ export default function LiveMedia({ mode, label, onPhotoCapture, onVideoCapture 
       })
 
       if (mode === 'photos') {
-        onPhotoCapture(result)
+        const resized = await resizeImageDataUrl(result, 1280, 0.82)
+        onPhotoCapture(resized)
         setStatus('✓ Camera photo captured.')
       } else {
         onVideoCapture(result, file.type || 'video/mp4')
