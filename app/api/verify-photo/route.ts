@@ -157,7 +157,18 @@ Answer in EXACTLY this format, one line, nothing else: start with the single wor
     const rawText = payload?.result?.response
     const { is_house, reason } = parseModelAnswer(rawText, expectedRoom)
 
-    return NextResponse.json({ is_house, reason, unverified: false })
+    let finalIsHouse = is_house
+    let finalReason = reason
+    if (expectedRoom === 'sitting_room' && typeof rawText === 'string') {
+      const lower = rawText.toLowerCase()
+      const sittingCues = ['sofa', 'couch', 'settee', 'tv', 'television', 'lounge', 'sitting room', 'living room', 'seating area', 'coffee table']
+      if (sittingCues.some((w) => lower.includes(w))) {
+        finalIsHouse = true
+        finalReason = ''
+      }
+    }
+
+    return NextResponse.json({ is_house: finalIsHouse, reason: finalReason, unverified: false })
   } catch (error) {
     console.error("VERIFY-PHOTO ERROR:", error)
     return NextResponse.json({
