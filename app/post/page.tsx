@@ -125,12 +125,7 @@ export default function Post() {
       return
     }
 
-    const verdict = await verifyIsRoomPhoto(dataUrl, ROOM_TO_KEY[roomName], type)
-    if (!verdict.ok) {
-      setStatuses(s => ({ ...s, [roomName]: 'rejected' }))
-      setReasons(r => ({ ...r, [roomName]: verdict.reason }))
-      return
-    }
+  
 
     setPhotos(p => ({ ...p, [roomName]: dataUrl }))
     setStatuses(s => ({ ...s, [roomName]: 'ok' }))
