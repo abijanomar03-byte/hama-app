@@ -17,14 +17,21 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <Link href="/search" className="muted" style={{ textDecoration: 'none' }}>← Back to houses</Link>
       <div className="two" style={{ marginTop: 14 }}>
         <div className="panel">
-          <div className="rooms">
-            {rooms.map(([name, src]) => (
-              <div className="room" key={name}>
-                {src ? <img src={src} alt={name} /> : <div style={{ background: '#eee', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 13 }}>No photo yet</div>}
-                <div className="rt">{name}</div>
-              </div>
-            ))}
-          </div>
+          {l.walkthrough ? (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>🎥 House walkthrough</div>
+              <video src={l.walkthrough} controls playsInline style={{ width: '100%', borderRadius: 14, background: '#111', maxHeight: 520 }} />
+            </div>
+          ) : (
+            <div className="rooms">
+              {rooms.map(([name, src]) => (
+                <div className="room" key={name}>
+                  {src ? <img src={src} alt={name} /> : <div style={{ background: '#eee', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 13 }}>No photo yet</div>}
+                  <div className="rt">{name}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <aside className="panel">
           <span className="badge">{l.vacancy}</span>
@@ -44,7 +51,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="notice" style={{ marginTop: 16 }}>
             👤 Listed by {l.contactName}{l.contactPhone ? ` · ${l.contactPhone}` : ''}<br />
-            {l.isDemo ? 'This is demo data included to fill out the map — not a real listing.' : 'Every room photo here was captured live and passed an AI check confirming it actually shows a house.'}
+            {l.isDemo ? 'This is demo data included to fill out the map — not a real listing.' : 'Media was captured for this listing and reviewed by Hama before publication.'}
           </div>
           {l.contactPhone && !l.isDemo ? (
             <a className="btn btn-primary" style={{ width: '100%', marginTop: 12, display: 'block', textAlign: 'center' }} href={`tel:${l.contactPhone.replace(/\s+/g, '')}`}>
