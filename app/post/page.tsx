@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function PostListingPage() {
   const router = useRouter()
-  const supabase = createClientComponentClient()
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -29,7 +28,7 @@ export default function PostListingPage() {
     setSuccessMsg('')
 
     try {
-      // 1. Check for logged-in user
+      // Get the currently authenticated user
       const { data: { user }, error: authError } = await supabase.auth.getUser()
 
       if (authError || !user) {
@@ -39,7 +38,7 @@ export default function PostListingPage() {
         return
       }
 
-      // 2. Insert into database using the actual user's ID
+      // Insert into Supabase with the active authenticated user ID
       const { data, error } = await supabase
         .from('properties')
         .insert({
@@ -113,7 +112,7 @@ export default function PostListingPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full p-2 border rounded-lg h-28"
-            placeholder="Describe the house features, rules, surrounding area..."
+            placeholder="Describe property features..."
           />
         </div>
 
