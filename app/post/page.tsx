@@ -55,6 +55,20 @@ export default function Post() {
 
   function handleVideo(dataUrl: string) { setVideo(dataUrl) }
 
+  function describeError(e: unknown): string {
+    if (e instanceof Error) return e.message || e.name || 'Unknown error'
+    if (e && typeof e === 'object') {
+      const anyE = e as any
+      let msg = typeof anyE.message === 'string' && anyE.message ? anyE.message : ''
+      if (anyE.details) msg += (msg ? ' — ' : '') + anyE.details
+      if (anyE.hint) msg += ' (' + anyE.hint + ')'
+      if (anyE.code) msg += ' [code: ' + anyE.code + ']'
+      if (msg) return msg
+      try { return JSON.stringify(e) } catch { return String(e) }
+    }
+    return String(e)
+  }
+
   async function publish() {
     setError('')
     if (!userId) { router.push('/auth?next=/post'); return }
@@ -62,7 +76,9 @@ export default function Post() {
     const supabase = getSupabase()
     if (!supabase) { setError('Supabase is not configured yet.'); return }
     setPublishing(true)
+    let step = 'starting'
     try {
+      step = 'creating the listing'
       const vacancyDate = new Date()
       vacancyDate.setDate(vacancyDate.getDate() + Number(vacancy))
       const { data: property, error: insertError } = await supabase.from('properties').insert({
@@ -73,29 +89,35 @@ export default function Post() {
       if (insertError || !property) throw insertError || new Error('Could not create the listing.')
 
       if (mediaChoice === 'video' && video) {
+        step = 'reading the video file'
         const blob = await (await fetch(video)).blob()
+        step = 'uploading the video'
         const path = `${userId}/${property.id}/walkthrough.${blob.type.includes('webm') ? 'webm' : 'mp4'}`
         const { error: uploadError } = await supabase.storage.from('property-media').upload(path, blob, { contentType: blob.type || 'video/mp4', upsert: true })
         if (uploadError) throw uploadError
+        step = 'saving the video record'
         const { error: mediaError } = await supabase.from('property_media').insert({ property_id: property.id, room_type: null, media_type: 'video', storage_path: path, captured_at: new Date().toISOString(), ai_verified: false })
         if (mediaError) throw mediaError
       } else {
         for (const roomName of requiredRooms) {
           const dataUrl = photos[roomName]
           if (!dataUrl) throw new Error(`${roomName} photo is missing.`)
+          step = `reading the ${roomName} photo`
           const blob = await (await fetch(dataUrl)).blob()
+          step = `uploading the ${roomName} photo`
           const path = `${userId}/${property.id}/${ROOM_TO_KEY[roomName]}.jpg`
           const { error: uploadError } = await supabase.storage.from('property-media').upload(path, blob, { contentType: 'image/jpeg', upsert: true })
           if (uploadError) throw uploadError
+          step = `saving the ${roomName} photo record`
           const { error: mediaError } = await supabase.from('property_media').insert({ property_id: property.id, room_type: roomName, media_type: 'photo', storage_path: path, captured_at: new Date().toISOString(), ai_verified: false })
           if (mediaError) throw mediaError
         }
       }
       setSuccessId(property.id)
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Something went wrong while publishing.'
-      console.error('HAMA PUBLISH ERROR', e)
-      setError(message)
+      const detail = describeError(e)
+      console.error('HAMA PUBLISH ERROR at step:', step, e)
+      setError(`Failed while ${step}: ${detail}`)
     } finally { setPublishing(false) }
   }
 
@@ -144,7 +166,16 @@ export default function Post() {
 
       <div className="notice" style={{marginTop:14}}><strong>Before you publish</strong><div style={{display:'grid',gap:7,marginTop:9}}>
         <div>{hood?'✅':'⭕'} Location selected</div><div>{area?'✅':'⭕'} Area selected</div><div>{rent?'✅':'⭕'} Monthly rent entered</div>{mediaChoice==='video'?<div>{video?'✅':'⭕'} Walkthrough video captured</div>:requiredRooms.map(r=><div key={r}>{photos[r]?'✅':'⭕'} {r} photo captured</div>)}
-      </div>{!readyToPublish&&<div style={{marginTop:8,fontSize:12,color:'#667085'}}>Complete the items above to publish your house.</div>}</div>
+      </div>{!readyToPublish&&(
+        <div style={{marginTop:8,fontSize:12,color:'#667085'}}>
+          Still needed before you can publish:
+          {!hood && <div>• Choose a hood</div>}
+          {!area && <div>• Choose an area</div>}
+          {!rent && <div>• Enter monthly rent</div>}
+          {mediaChoice==='photos' && !photosComplete && <div>• Missing photos: {requiredRooms.filter(r=>!photos[r]).join(', ')}</div>}
+          {mediaChoice==='video' && !video && <div>• Record the walkthrough video</div>}
+        </div>
+      )}</div>
       {error&&<div className="notice" style={{marginTop:10,color:'#b3261e'}}>{error}</div>}
       <button type="button" className="btn btn-primary" style={{width:'100%',marginTop:14}} disabled={!readyToPublish||publishing} onClick={publish}>{publishing?'Publishing…':'Publish house'}</button>
     </div>
