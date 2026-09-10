@@ -1,26 +1,53 @@
 'use client'
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { getSupabase } from '@/lib/supabase'
 
-export default function Dashboard() {
-  const [rows, setRows] = useState<any[]>([])
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+
+interface Property {
+  id: string
+  title: string
+  price: number
+  location: string
+  status: string
+}
+
+export default function DashboardPage() {
+  const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const sb = getSupabase()
-    if (!sb) { setMessage('Supabase is not configured.'); setLoading(false); return }
-    sb.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { window.location.href = '/auth?next=/dashboard'; return }
-      const { data: listings, error } = await sb.from('properties').select('id,hood,area,house_type,rent,vacancy_date,status,created_at').eq('owner_id', data.user.id).order('created_at', { ascending: false })
-      if (error) setMessage(error.message); else setRows(listings || [])
+    async function fetchMyListings() {
+      const { data, error } = await supabase.from('properties').select('*')
+      if (!error && data) {
+        setProperties(data as Property[])
+      }
       setLoading(false)
-    })
+    }
+    fetchMyListings()
   }, [])
 
-  return <main className="page"><section className="section"><div className="container" style={{maxWidth:900}}>
-    <div className="section-head"><div><div className="eyebrow">MY HAMA</div><h1 style={{margin:'6px 0'}}>My houses</h1><p className="muted">Track every house you have submitted and its review status.</p></div><Link href="/post" className="btn btn-primary">+ Post another</Link></div>
-    {loading ? <div className="panel">Loading…</div> : message ? <div className="notice" style={{color:'#b3261e'}}>{message}</div> : rows.length===0 ? <div className="panel"><h2>No houses yet</h2><p className="muted">When you post a house, it will appear here with its review status.</p><Link href="/post" className="btn btn-primary">Post your house</Link></div> : <div className="grid" style={{gridTemplateColumns:'repeat(2, minmax(0,1fr))'}}>{rows.map(r=><div className="panel" key={r.id}><span className="badge">{r.status}</span><h3 style={{margin:'9px 0 5px'}}>{r.house_type} · {r.hood}</h3><div className="muted">{r.area} · KSh {Number(r.rent).toLocaleString()}/month</div><div className="chips"><span className="chip">Vacancy {new Date(r.vacancy_date).toLocaleDateString('en-KE')}</span></div><Link href={`/listing/${r.id}`} className="btn btn-secondary" style={{display:'inline-block',marginTop:12}}>View</Link></div>)}</div>}
-  </div></section></main>
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">My Dashboard</h1>
+      {loading ? (
+        <p className="text-gray-500">Loading your listings...</p>
+      ) : properties.length === 0 ? (
+        <p className="text-gray-500">You have no active property listings.</p>
+      ) : (
+        <div className="space-y-4">
+          {properties.map((item) => (
+            <div key={item.id} className="border p-4 rounded-lg flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">{item.title}</h3>
+                <p className="text-sm text-gray-500">{item.location} - KSh {item.price.toLocaleString()}</p>
+              </div>
+              <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium uppercase">
+                {item.status || 'Active'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }

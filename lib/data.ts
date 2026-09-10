@@ -78,11 +78,15 @@ export async function getRealListings(): Promise<Listing[]> {
 export async function getRealListingById(id: string): Promise<Listing | null> {
   const supabase = getSupabase()
   if (!supabase) return null
+  // No status filter here (unlike the list view): a listing's owner should
+  // be able to preview their own pending listing right after posting it.
+  // The database's Row Level Security is what actually enforces that
+  // strangers still can't see anyone else's pending listing -- this query
+  // just asks for the row, and Postgres only returns it if RLS allows it.
   const { data, error } = await supabase
     .from('properties')
     .select('*, property_media(*), owner:profiles(*)')
     .eq('id', id)
-    .eq('status', 'active')
     .maybeSingle()
   if (error || !data) return null
   return mapPropertyToListing(data as PropertyRow, (data.property_media || []) as PropertyMediaRow[], data.owner as ProfileRow | null)
