@@ -1,85 +1,169 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
-export default function HomePage() {
-  const [properties, setProperties] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+export default function PostPropertyPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    title: '',
+    location: '',
+    price: '',
+    bedrooms: '',
+    bathrooms: '',
+    phone: '',
+    description: '',
+  })
+  const [imageUrl, setImageUrl] = useState('')
 
-  useEffect(() => {
-    fetchProperties()
-  }, [])
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
 
-  const fetchProperties = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
-    const { data, error } = await supabase
-      .from('properties')
-      .select('*, images')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false })
 
-    if (!error && data) {
-      setProperties(data)
-    }
+    const imagesArray = imageUrl.trim() ? [imageUrl.trim()] : []
+
+    const { error } = await supabase.from('properties').insert([
+      {
+        title: formData.title,
+        location: formData.location,
+        price: parseFloat(formData.price) || 0,
+        bedrooms: parseInt(formData.bedrooms) || 0,
+        bathrooms: parseInt(formData.bathrooms) || 0,
+        phone: formData.phone,
+        description: formData.description,
+        images: imagesArray,
+        status: 'approved',
+      },
+    ])
+
     setLoading(false)
+
+    if (error) {
+      alert('Error creating listing: ' + error.message)
+    } else {
+      alert('Listing created successfully!')
+      router.push('/')
+    }
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Featured Properties</h1>
-        <Link
-          href="/post"
-          className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800"
-        >
-          + Post Property
-      </div>
-
-      {loading ? (
-        <p className="text-gray-500">Loading listings...</p>
-      ) : properties.length === 0 ? (
-        <p className="text-gray-500">No properties available yet.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {properties.map((property) => (
-            <div key={property.id} className="border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition bg-white">
-              {property.images && property.images.length > 0 ? (
-                <div className="relative h-48 w-full bg-gray-100">
-                  <img
-                    src={property.images[0]}
-                    alt={property.title}
-                    className="w-full h-full object-cover"
-                  />
-                  {property.images.length > 1 && (
-                    <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md">
-                      +{property.images.length - 1} photos
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div className="h-48 bg-gray-200 flex items-center justify-center text-gray-400 text-sm">
-                  No Image
-                </div>
-              )}
-
-              <div className="p-4">
-                <h2 className="font-semibold text-lg line-clamp-1">{property.title}</h2>
-                <p className="text-gray-500 text-sm mb-2">{property.location}</p>
-                <div className="flex items-center justify-between mt-4">
-                  <span className="text-lg font-bold text-green-700">
-                    KSh {property.price?.toLocaleString()}
-                  </span>
-                  <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
-                    {property.bedrooms} Bed | {property.bathrooms} Bath
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Post a New Property</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Title</label>
+          <input
+            type="text"
+            name="title"
+            required
+            value={formData.title}
+            onChange={handleChange}
+            placeholder="e.g. Modern 2 Bed Apartment in Kilimani"
+            className="w-full border rounded-lg p-2"
+          />
         </div>
-      )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Location</label>
+            <input
+              type="text"
+              name="location"
+              required
+              value={formData.location}
+              onChange={handleChange}
+              placeholder="e.g. Kilimani, Nairobi"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Price (KSh)</label>
+            <input
+              type="number"
+              name="price"
+              required
+              value={formData.price}
+              onChange={handleChange}
+              placeholder="e.g. 45000"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Bedrooms</label>
+            <input
+              type="number"
+              name="bedrooms"
+              value={formData.bedrooms}
+              onChange={handleChange}
+              placeholder="2"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Bathrooms</label>
+            <input
+              type="number"
+              name="bathrooms"
+              value={formData.bathrooms}
+              onChange={handleChange}
+              placeholder="1"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">WhatsApp Phone</label>
+            <input
+              type="text"
+              name="phone"
+              required
+              value={formData.phone}
+              onChange={handleChange}
+              placeholder="e.g. 254712345678"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Image URL</label>
+          <input
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://images.unsplash.com/..."
+            className="w-full border rounded-lg p-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description</label>
+          <textarea
+            name="description"
+            rows={4}
+            value={formData.description}
+            onChange={handleChange}
+            placeholder="Detailed property specs..."
+            className="w-full border rounded-lg p-2"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-400"
+        >
+          {loading ? 'Publishing...' : 'Publish Property'}
+        </button>
+      </form>
     </div>
   )
 }
