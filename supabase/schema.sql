@@ -22,7 +22,7 @@ create table if not exists properties (
   vacancy_date date not null,
   water text, security text, road text, internet text, parking text,
   created_at timestamptz default now(),
-  status text default 'pending'
+  status text default 'active'
 );
 
 create table if not exists property_media (
@@ -129,53 +129,3 @@ create policy "owner can delete own property media" on storage.objects
     bucket_id = 'property-media'
     and auth.uid()::text = (storage.foldername(name))[1]
   );
-
--- ---- Production hardening additions ----------------------------------
-create index if not exists properties_status_created_idx on properties(status, created_at desc);
-create index if not exists properties_hood_area_idx on properties(hood, area);
-create index if not exists properties_vacancy_idx on properties(vacancy_date);
-create index if not exists property_media_property_idx on property_media(property_id, created_at desc);
-
--- Owners can see their own pending listings; the public can only see active ones.
-drop policy if exists "public can read active properties" on properties;
-create policy "public can read active properties" on properties
-  for select using (status = 'active' or auth.uid() = owner_id);
-
-drop policy if exists "public can read media" on property_media;
-create policy "public can read active property media" on property_media
-  for select using (
-    exists (select 1 from properties p where p.id = property_id and (p.status = 'active' or p.owner_id = auth.uid()))
-  );
-
--- Allow owners to delete their own property media when correcting a listing.
-drop policy if exists "owner can delete media" on property_media;
-create policy "owner can delete media" on property_media
-  for delete using (
-    exists (select 1 from properties p where p.id = property_id and p.owner_id = auth.uid())
-  );
-
-
--- Force owner-created listings into moderation. A normal authenticated user cannot
--- make a property public by sending status='active' from the browser. Reviewers
--- should approve by changing status from the Supabase dashboard/SQL editor.
-create or replace function hama_force_pending_property()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if coalesce(auth.role(), '') <> 'service_role' then
-    new.status := 'pending';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists hama_force_pending_property_trigger on properties;
-create trigger hama_force_pending_property_trigger
-before insert or update on properties
-for each row execute function hama_force_pending_property();
-
--- Manual approval example (run as the project owner in Supabase SQL Editor):
--- update public.properties set status = 'active' where id = '<PROPERTY_ID>';

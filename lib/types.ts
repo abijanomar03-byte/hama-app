@@ -3,7 +3,7 @@ export type VacancyStatus='Vacant now'|'Vacant in 5 days'|'Vacant in 10 days'|'V
 export type Listing={
   id:string;hood:string;area:string;houseType:HouseType;rent:number;deposit:number;vacancy:VacancyStatus;
   water:string;security:string;road:string;internet:string;parking:string;
-  sittingRoom:string;bedroom:string;kitchen:string;washroom:string;walkthrough?:string;
+  sittingRoom:string;bedroom:string;kitchen:string;washroom:string;
   contactName:string;contactPhone?:string;
   isDemo?:boolean; // true for seed/placeholder listings, false/undefined for real posted ones
 }

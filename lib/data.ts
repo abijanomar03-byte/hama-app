@@ -28,9 +28,7 @@ export function mapPropertyToListing(
   owner: ProfileRow | null
 ): Listing {
   const photos: Record<string, string> = {}
-  let walkthrough = ''
   for (const m of media) {
-    if (m.media_type === 'video') { walkthrough = publicUrlFor(m.storage_path); continue }
     if (m.media_type !== 'photo' || !m.room_type) continue
     const key = ROOM_TYPE_MAP[m.room_type]
     if (key) photos[key] = publicUrlFor(m.storage_path)
@@ -52,7 +50,6 @@ export function mapPropertyToListing(
     bedroom: photos.bedroom || '',
     kitchen: photos.kitchen || '',
     washroom: photos.washroom || '',
-    walkthrough: walkthrough || undefined,
     contactName: owner?.full_name || 'Landlord',
     contactPhone: owner?.phone || undefined,
     isDemo: false
@@ -80,9 +77,8 @@ export async function getRealListingById(id: string): Promise<Listing | null> {
   if (!supabase) return null
   // No status filter here (unlike the list view): a listing's owner should
   // be able to preview their own pending listing right after posting it.
-  // The database's Row Level Security is what actually enforces that
-  // strangers still can't see anyone else's pending listing -- this query
-  // just asks for the row, and Postgres only returns it if RLS allows it.
+  // Row Level Security is what actually enforces that strangers still
+  // can't see anyone else's pending listing.
   const { data, error } = await supabase
     .from('properties')
     .select('*, property_media(*), owner:profiles(*)')
@@ -98,8 +94,7 @@ export async function getRealListingById(id: string): Promise<Listing | null> {
  *  can label it. */
 export async function getListings(filters: { location?: string; type?: string; budget?: number }): Promise<Listing[]> {
   const real = await getRealListings()
-  const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO === 'true'
-  const demo = showDemo ? demoListings.map(l => ({ ...l, isDemo: true as const })) : []
+  const demo = demoListings.map(l => ({ ...l, isDemo: true as const }))
   const all = [...real, ...demo]
   return all.filter(l =>
     (!filters.location || l.hood === filters.location) &&
