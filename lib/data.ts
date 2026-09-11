@@ -63,7 +63,7 @@ export async function getRealListings(): Promise<Listing[]> {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('properties')
-    .select('*, property_media(*), owner:profiles(*)')
+    .select('*, property_media(*), owner:profiles!properties_owner_id_fkey(*)')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
   if (error || !data) return []
@@ -81,7 +81,7 @@ export async function getRealListingById(id: string): Promise<Listing | null> {
   // can't see anyone else's pending listing.
   const { data, error } = await supabase
     .from('properties')
-    .select('*, property_media(*), owner:profiles(*)')
+    .select('*, property_media(*), owner:profiles!properties_owner_id_fkey(*)')
     .eq('id', id)
     .maybeSingle()
   if (error || !data) return null
