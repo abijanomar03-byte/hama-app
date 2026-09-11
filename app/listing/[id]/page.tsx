@@ -1,12 +1,37 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { getListingById } from '@/lib/data'
+import { Listing } from '@/lib/types'
 
-export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const l = await getListingById(decodeURIComponent(id))
-  if (!l) notFound()
+export default function ListingPage() {
+  const params = useParams()
+  const id = decodeURIComponent(String(params.id))
+  const [listing, setListing] = useState<Listing | null | undefined>(undefined)
 
+  useEffect(() => {
+    let cancelled = false
+    getListingById(id).then((l) => { if (!cancelled) setListing(l) })
+    return () => { cancelled = true }
+  }, [id])
+
+  if (listing === undefined) {
+    return <main className="page"><section className="section"><div className="container">Loading…</div></section></main>
+  }
+  if (listing === null) {
+    return (
+      <main className="page"><section className="section"><div className="container">
+        <div className="panel">
+          <h1>Listing not found</h1>
+          <p className="muted">This listing may still be pending review, may have been removed, or the link may be incorrect.</p>
+          <Link href="/search" className="btn btn-primary" style={{ marginTop: 12, display: 'inline-block' }}>← Back to houses</Link>
+        </div>
+      </div></section></main>
+    )
+  }
+
+  const l = listing
   const rooms = [
     ['Sitting Room', l.sittingRoom], ['Bedroom', l.bedroom],
     ['Kitchen', l.kitchen], ['Washroom', l.washroom]

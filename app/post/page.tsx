@@ -140,7 +140,7 @@ export default function Post() {
           rent: Number(rent), deposit: Number(rent),
           vacancy_date: vacancyDate.toISOString().slice(0, 10),
           water, security, road: '5 min walk', internet, parking,
-          status: 'pending'
+          status: 'active'
         })
         .select()
         .single()
