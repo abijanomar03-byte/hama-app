@@ -40,23 +40,6 @@ function checkPhotoQuality(dataUrl: string): Promise<boolean> {
   })
 }
 
-async function verifyIsHousePhoto(dataUrl: string): Promise<{ ok: boolean; reason: string; warning?: string }> {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/)
-  if (!match) return { ok: true, reason: '' }
-  const [, mediaType, base64] = match
-  try {
-    const r = await fetch('/api/verify-photo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: base64, mediaType })
-    })
-    const data = await r.json()
-    return { ok: !!data.is_house, reason: data.reason || '', warning: data.warning }
-  } catch {
-    return { ok: true, reason: '', warning: 'Verification request failed — photo accepted without a content check.' }
-  }
-}
-
 export default function Post() {
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(true)
@@ -97,10 +80,6 @@ export default function Post() {
   }, [router])
 
   const onCapture = async (roomName: string, dataUrl: string) => {
-    // AI content verification removed on request -- photos are accepted as
-    // soon as they pass the basic blur/blank check. Listings publish with
-    // status "pending" (see publish() below) so nothing goes public until
-    // manually approved in Supabase's Table Editor.
     setStatuses(s => ({ ...s, [roomName]: 'checking' }))
     setReasons(r => ({ ...r, [roomName]: '' }))
     setWarnings(w => ({ ...w, [roomName]: '' }))
@@ -115,7 +94,6 @@ export default function Post() {
     setPhotos(p => ({ ...p, [roomName]: dataUrl }))
     setStatuses(s => ({ ...s, [roomName]: 'ok' }))
 
-    // Move the user forward immediately after a successful room capture.
     const nextIndex = ROOMS.indexOf(roomName as typeof ROOMS[number]) + 1
     if (nextIndex < ROOMS.length) setRoomIndex(nextIndex)
   }
@@ -176,7 +154,7 @@ export default function Post() {
     return (
       <main className="page"><section className="section"><div className="container"><div className="panel">
         <h1>✓ Your house is live</h1>
-        <p className="muted">All 4 rooms were captured live and passed the AI house-photo check. This is a real listing — anyone browsing Hama can see it now.</p>
+        <p className="muted">All 4 rooms were captured live with your camera. This is a real listing — anyone browsing Hama can see it now.</p>
         <div className="rooms">
           {ROOMS.map(r => photos[r] && (
             <div className="room" key={r}><img src={photos[r]} alt={r} /><div className="rt">{r} · Fresh capture</div></div>
@@ -192,7 +170,7 @@ export default function Post() {
       <div className="panel">
         <div className="eyebrow">I&apos;M MOVING OUT</div>
         <h1>Post your house</h1>
-        <p className="muted">Post after giving notice to move out. Fresh camera captures are checked by AI to keep listings real.</p>
+        <p className="muted">Post after giving notice to move out. Fresh live-camera captures keep listings real — no gallery uploads.</p>
         <div className="form">
           <div>
             <label>Where do you stay?</label>
@@ -258,7 +236,7 @@ export default function Post() {
       <div className="panel">
         <div className="eyebrow">LIVE CAPTURE</div>
         <h2 style={{ margin: '6px 0' }}>Room by room</h2>
-        <p className="muted">No gallery picker. Every photo is captured live and checked by AI before it&apos;s accepted.</p>
+        <p className="muted">No gallery picker — every photo is captured live with your camera, right now.</p>
         <div className="chips" style={{ marginBottom: 12 }}>
           {ROOMS.map((r, i) => (
             <button key={r} className="chip" onClick={() => setRoomIndex(i)}
@@ -271,10 +249,19 @@ export default function Post() {
         {statuses[room] === 'checking' && <div className="notice">Checking photo — confirming it&apos;s really a room…</div>}
         {statuses[room] === 'rejected' && <div className="notice" style={{ color: '#b3261e' }}>✗ Rejected: {reasons[room]}</div>}
         {statuses[room] === 'ok' && warnings[room] && <div className="notice" style={{ color: '#b3261e' }}>⚠️ {warnings[room]}</div>}
-        {statuses[room] === 'ok' && !warnings[room] && <div className="notice" style={{ color: 'var(--green)' }}>✓ Verified — this photo really shows a room.</div>}
+        {statuses[room] === 'ok' && !warnings[room] && <div className="notice" style={{ color: 'var(--green)' }}>✓ Captured.</div>}
 
         <LiveCamera key={room} label={room} onCapture={(dataUrl) => onCapture(room, dataUrl)} />
 
+        {(!hood || !area || !rent || !allOk) && (
+          <div className="notice" style={{ marginTop: 10 }}>
+            Still needed before you can publish:
+            {!hood && <div>• Choose a hood</div>}
+            {!area && <div>• Choose an area</div>}
+            {!rent && <div>• Enter monthly rent</div>}
+            {!allOk && <div>• Missing room photos: {ROOMS.filter(r => statuses[r] !== 'ok').join(', ')}</div>}
+          </div>
+        )}
         {publishError && <div className="notice" style={{ color: '#b3261e', marginTop: 10 }}>{publishError}</div>}
         <button className="btn btn-primary" style={{ width: '100%', marginTop: 14 }}
           disabled={!hood || !area || !rent || !allOk || publishing}
