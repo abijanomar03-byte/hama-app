@@ -68,7 +68,7 @@ export default function ListingPage() {
             <span className="chip">Fresh room captures</span>
           </div>
           <div className="notice" style={{ marginTop: 16 }}>
-            👤 Listed by {l.contactName}{l.contactPhone ? ` · ${l.contactPhone}` : ''}<br />
+            👤 Posted by {l.contactName}, the current tenant{l.contactPhone ? ` · ${l.contactPhone}` : ''}<br />
             {l.isDemo ? 'This is demo data included to fill out the map — not a real listing.' : 'Every room photo here was captured live and passed an AI check confirming it actually shows a house.'}
           </div>
           {l.contactPhone && !l.isDemo ? (
